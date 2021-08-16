@@ -1,0 +1,361 @@
+/*
+ * tools.hpp
+ *
+ *  Created on: Apr. 6, 2021
+ *      Author: Bruno St-Aubin
+ */
+#ifndef WEB_RESULTS_HPP
+#define WEB_RESULTS_HPP
+
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <typeinfo>
+
+#include <cadmium/modeling/dynamic_model.hpp>
+
+#include <NDTime.hpp>
+#include "json.hpp"
+#include "web_model.hpp"
+#include "web_tools.hpp"
+
+using namespace std;
+
+using json = nlohmann::json;
+
+using Models = cadmium::dynamic::modeling::Models;
+using Ports = cadmium::dynamic::modeling::Ports;
+using EICs = cadmium::dynamic::modeling::EICs;
+using EOCs = cadmium::dynamic::modeling::EOCs;
+using ICs = cadmium::dynamic::modeling::ICs;
+
+using TIME = NDTime;
+
+bool _isDEVS_ = true;
+
+namespace cadmium {
+    namespace web {
+
+    	struct s_results {
+    		map<string, int> model_index;
+    		map<string, map<string, int>> port_index;
+    		json structure;
+    		map<NDTime, std::vector<string>> frames;
+    	};
+
+		// static json info_to_json(shared_ptr<cadmium::dynamic::modeling::model> p_top) {
+		static json info_to_json(shared_ptr<cadmium::dynamic::modeling::model> p_top) {
+			return {
+				{"simulator", "Cadmium"},
+				{"name", p_top->get_id()},
+				{"type", "GIS-DEVS"}	// TEMPORARY, NOT ALWAYS DEVS, COULD BE CELL DEVS
+			};
+		}
+
+		static std::string get_model_name(shared_ptr<cadmium::dynamic::modeling::model> p_model) {
+			std::string name = boost::core::demangle(typeid(*p_model).name());
+
+			int i_s = name.find('<') + 1;
+			int i_e = name.find(',', i_s);
+
+			return name.substr(i_s, i_e - i_s);
+		}
+
+    	static std::string get_port_name(std::type_index p_port) {
+    		std::string name = boost::core::demangle(p_port.name());
+
+    		return name.substr(name.find_last_of(':') + 1);
+    	}
+
+    	static json find_model_type_index(json structure, shared_ptr<cadmium::dynamic::modeling::model> p_model) {
+    		std::string name = get_model_name(p_model);
+
+    		for (int i = 0; i < structure["model_types"].size(); i++) {
+    			if (structure["model_types"][i]["name"].get<std::string>() == name) return i;
+    		}
+
+    		return -1;
+    	}
+
+    	static json find_model_type(json structure, shared_ptr<cadmium::dynamic::modeling::model> p_model) {
+    		int i = find_model_type_index(structure, p_model);
+
+    		if (i == -1) return NULL;
+
+    		return structure["model_types"][i];
+    	}
+
+    	static json find_port_type_index(json structure, shared_ptr<cadmium::dynamic::modeling::model> p_model, std::type_index p_port) {
+    		int model_type_idx = find_model_type_index(structure, p_model);
+
+    		// std::string model_name = get_model_name(p_model);
+    		std::string port_name = get_port_name(p_port);
+
+    		for (int i = 0; i < structure["port_types"].size(); i++) {
+    			if (structure["port_types"][i]["model_type"].get<int>() != model_type_idx) continue;
+
+    			if (structure["port_types"][i]["name"].get<std::string>() == port_name) return i;
+    		}
+
+    		return -1;
+    	}
+
+    	static json model_type_to_json(shared_ptr<cadmium::dynamic::modeling::model> p_model) {
+    		json j_model_type = {
+				{"name", get_model_name(p_model)},
+				{"type", typeid(*p_model) == typeid(dynamic::modeling::coupled<TIME>) ? "coupled" : "atomic"}
+			};
+
+            // TODO: I think I have to recompile Cadmium for this to stop showing as an error.
+            // std::string s_template = p_model->get_template();
+            std::string s_template = "";
+
+			if (!s_template.empty()) j_model_type["template"] = s_template;
+
+			else j_model_type["template"] = NULL;
+
+			return j_model_type;
+    	}
+
+    	static json port_type_to_json(int model_type_idx, shared_ptr<cadmium::dynamic::modeling::model> p_model, std::type_index p_port) {
+            json j_port_type = {
+    			{"model_type", model_type_idx},
+				// {"model_type", get_model_name(p_model)},
+				{"name", get_port_name(p_port)},
+				{"type", "output"}
+            };
+
+            // TODO: I think I have to recompile Cadmium for this to stop showing as an error.
+            // std::string s_template = p_model->get_port_template(p_port);
+            std::string s_template = "";
+
+            if (!s_template.empty()) j_port_type["template"] = s_template;
+
+			return j_port_type;
+    	}
+
+    	static json model_to_json(json structure, shared_ptr<cadmium::dynamic::modeling::model> p_model) {
+    		int i = find_model_type_index(structure, p_model);
+
+    		json j_model = {
+				{"id", p_model->get_id()},
+				{"model_type", i}
+			};
+
+			return j_model;
+    	}
+
+    	static json port_to_json(json structure, shared_ptr<cadmium::dynamic::modeling::model> p_model, std::type_index p_port) {
+    		int i = find_port_type_index(structure, p_model, p_port);
+
+    		json j_port = {
+				{"model_id", p_model->get_id()},
+				{"port_type", i}
+			};
+
+    		return j_port;
+    	}
+
+    	static json link_to_json(s_results& results, std::string modelA, std::string modelB, std::shared_ptr<cadmium::dynamic::engine::link_abstract> link) {
+    		std::string portA = get_port_name(link->from_port_type_index());
+    		std::string portB = get_port_name(link->to_port_type_index());
+
+    		return {
+				{"modelA", modelA},
+				{"modelB", modelB},
+				{"portA", portA},
+				{"portB", portB}
+			};
+    	}
+
+    	static void generate_structure(s_results& results, shared_ptr<web::coupled_web<TIME>> p_top) {
+    		results.structure["info"] = info_to_json(p_top);
+    		results.structure["model_types"] = json::array();
+    		results.structure["port_types"] = json::array();
+    		results.structure["nodes"] = json::array();
+    		results.structure["links"] = json::array();
+
+    		for (auto& p_model : p_top->_models) {
+    			json model_type = find_model_type(results.structure, p_model);
+
+    			if (model_type == NULL) {
+
+    				model_type = model_type_to_json(p_model);
+
+    				int model_type_idx = results.structure["model_types"].size();
+
+    				results.structure["model_types"].push_back(model_type);
+
+            		for (auto& p_port : p_model->get_output_ports()) {
+            			results.structure["port_types"].push_back(port_type_to_json(model_type_idx, p_model, p_port));
+            		}
+    			}
+
+    			results.structure["nodes"].push_back(model_to_json(results.structure, p_model));
+
+        		for (auto& p_port : p_model->get_output_ports()) {
+        			results.structure["nodes"].push_back(port_to_json(results.structure, p_model, p_port));
+        		}
+    		}
+    	}
+
+    	static void generate_links(s_results& results, shared_ptr<dynamic::modeling::coupled<TIME>> p_top) {
+    		for (cadmium::dynamic::modeling::EIC p_link : p_top->_eic) {
+    			results.structure["links"].push_back(link_to_json(results, p_top->get_id(), p_link._to, p_link._link));
+    		}
+
+    		for (cadmium::dynamic::modeling::EOC p_link : p_top->_eoc) {
+    			results.structure["links"].push_back(link_to_json(results, p_link._from, p_top->get_id(), p_link._link));
+    		}
+
+    		for (cadmium::dynamic::modeling::IC p_link : p_top->_ic) {
+    			results.structure["links"].push_back(link_to_json(results, p_link._from, p_link._to, p_link._link));
+    		}
+    	}
+
+    	static void generate_indices(s_results& results) {
+    		for (int i = 0; i < results.structure["nodes"].size(); i++) {
+    			json node = results.structure["nodes"][i];
+
+    			if (node.find("port_type") != node.end()) {
+    				int j = node["port_type"].get<int>();
+    				std::string model = node["model_id"].get<string>();
+    				std::string port = results.structure["port_types"][j]["name"].get<string>();
+
+    				results.port_index[model][port] = i;
+    			}
+
+    			else {
+    				std::string model = node["id"].get<string>();
+
+    				results.model_index[model] = i;
+    			}
+    		}
+    	}
+
+    	static void generate_output_messages(s_results& results, std::string path) {
+    		ifstream file;
+    		file.open(path);
+
+    		std::string l;							// time and line
+    		NDTime t;
+
+        	while (std::getline(file, l)) {
+
+        		std::vector<std::string> split = tools::split(l, ';');
+
+        		if (split.size() == 1) t = NDTime(l);
+
+        		else {
+            		std::vector<std::string> split = tools::split(l, ';');
+
+            		if (split.size() < 3) continue;
+
+					std::string model = split[0];
+					std::string port = split[1];
+					std::string port_i = std::to_string(results.port_index[model][port]);
+
+        			for (int i = 2; i < split.size(); i++) {
+    					results.frames[t].push_back(port_i + "," + split[i]);
+        			}
+        		}
+        	}
+    	}
+
+    	static void generate_state_messages(s_results& results, std::string path) {
+    		ifstream file;
+    		file.open(path);
+
+    		std::string l; // time and line
+    		NDTime t;
+
+        	while (std::getline(file, l)) {
+
+        		std::vector<std::string> split = tools::split(l, ';');
+
+        		// if (l.at(0) == '[') t = NDTime(l);
+        		if (split.size() == 1) t = NDTime(l);
+
+        		else {
+					std::string model_i = std::to_string(results.model_index[split[0]]);
+
+        			for (int i = 1; i < split.size(); i++) {
+    					results.frames[t].push_back(model_i + "," + split[i]);
+        			}
+        		}
+        	}
+    	}
+
+    	static void output_structure(s_results results, std::string folder) {
+    		std::ofstream o_structure(folder + "structure.json");
+
+    	    if (!o_structure.is_open()) cerr << "Unable to open structure.json file";
+
+    	    else {
+    	    	o_structure << results.structure << std::endl;
+
+    	    	o_structure.close();
+    	    }
+    	}
+
+    	static void output_messages(s_results results, std::string folder) {
+    		std::ofstream o_messages(folder + "messages.log");
+
+    	    if (!o_messages.is_open()) cerr << "Unable to open messages.log file";
+
+    	    else {
+        		for (auto const& frame : results.frames) {
+        			NDTime t = frame.first;
+
+        			o_messages << t << endl;
+
+        			for (auto const& message : frame.second) {
+        				o_messages << message << endl;
+        			}
+        		}
+
+        		o_messages.close();
+    	    }
+    	}
+/*
+    	static void process_model(s_results results, web::web_extension model) {
+
+    	}
+*/
+
+    	template<class T> void process_model(s_results results, T model) { } // primary template
+
+    	template<> void process_model(s_results results, web::web_extension model) {
+
+    	}
+
+    	// static void convert_results(shared_ptr<dynamic::modeling::coupled<TIME>> p_model, std::string path_output, std::string path_state, std::string folder) {
+        static void convert_results(shared_ptr<web::coupled_web<TIME>> p_top, std::string path_output, std::string path_state, std::string folder) {
+    		s_results results;
+
+    		try {
+    			for (auto& p_model : p_top->_models) {
+    				std::shared_ptr<web::web_extension> derived = std::dynamic_pointer_cast<web::web_extension> (p_model);
+
+    				std::string test = derived->get_type();
+    			}
+
+
+    			/*
+    			generate_structure(results, p_model);
+        		generate_indices(results);
+        		generate_links(results, p_model);
+        		generate_state_messages(results, path_state);
+        		generate_output_messages(results, path_output);
+        		output_structure(results, folder);
+        		output_messages(results, folder);
+        		*/
+    		}
+    		catch(std::exception& e) {
+    			std::cout << e.what();
+    		}
+    	}
+    }
+}
+
+#endif // WEB_RESULTS_HPP
