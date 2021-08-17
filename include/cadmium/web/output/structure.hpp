@@ -44,7 +44,7 @@ namespace cadmium {
 				private:
 					string _formalism;
 					string _simulator;
-					submodel* _top = NULL;
+					int _top = -1;
 					vector<model_type*> _model_types = vector<model_type*>();
 					vector<message_type*> _message_types = vector<message_type*>();
 					vector<submodel*> _components = vector<submodel*>();
@@ -60,8 +60,8 @@ namespace cadmium {
 					string get_simulator() { return _simulator; }
 					void set_simulator(string value) { _simulator = value; }
 
-					submodel* get_top() { return _top; }
-					void set_top(submodel* value) { _top = value; }
+					int get_top() { return _top; }
+					void set_top(int value) { _top = value; }
 
 					vector<model_type*> &get_model_types() { return _model_types; }
 
@@ -127,6 +127,14 @@ namespace cadmium {
 						get_components_index().insert({ component->get_model_id(), component });
 
 						return component;
+					}
+
+					void add_model_type_components(web_extension* p_ext) {
+						model_type* mt = get_model_type(p_ext->get_class());
+
+						for (auto& p_component : p_ext->get_models()) {
+							mt->add_component(get_component(p_component->get_id()));
+						}
 					}
 
 					model_type* get_model_type(string type) {
@@ -209,66 +217,12 @@ namespace cadmium {
 							p_mt->add_internal_coupling(make_coupling(p_ext->get_id(), l._to, l._link));
 						}
 					}
-/*
-					model_type* add_model_type(web_extension* p_ext) {
-						// Check if model_type already exists
-						model_type* p_mt = get_model_type(p_ext->get_class());
-
-						if (p_mt) return p_mt;
-
-						// Model type doesn't already exist, must be created from model extension
-						p_mt = new model_type(p_ext->get_class(), p_ext->get_type(), new metadata());
-
-						// Add built model to structure, set idx, etc.
-						p_mt->set_idx(get_model_types().size());
-						get_model_types().push_back(p_mt);
-						get_model_types_index().insert({ p_mt->get_name(), p_mt });
-
-						// Atomic models have a state message type, it must be added to structure
-						// if it's not already there. Then it must be assigned to the model type.
-						// NOTE: Can't figure out how to avoid the string check...
-						if (p_ext->get_type() == "atomic") {
-							message_type* p_msg = add_message_type(p_ext->get_state_message_type());
-
-							p_mt->set_message_type(p_msg->get_idx());
-						}
-
-						else {
-							for (auto& p_component : p_ext->get_models()) {
-								p_mt->add_submodel(get_component(p_component->get_id()));
-							}
-
-							for (cadmium::dynamic::modeling::EOC l : p_ext->get_eocs()) {
-								p_mt->add_internal_coupling(make_coupling(l._from, p_ext->get_id(), l._link));
-							}
-
-							for (cadmium::dynamic::modeling::IC l : p_ext->get_ics()) {
-								p_mt->add_internal_coupling(make_coupling(l._from, l._to, l._link));
-							}
-
-							for (cadmium::dynamic::modeling::EIC l : p_ext->get_eics()) {
-								p_mt->add_internal_coupling(make_coupling(p_ext->get_id(), l._to, l._link));
-							}
-						}
-
-						// Add all input and output ports
-						for (pair<string, message_type> kv: p_ext->get_input_ports_message_types()) {
-							add_port_to_model_type(p_mt, new port(kv.first, "input"), kv.second);
-						};
-
-						for (pair<string, message_type> kv: p_ext->get_output_ports_message_types()) {
-							add_port_to_model_type(p_mt, new port(kv.first, "output"), kv.second);
-						};
-
-						return p_mt;
-					}
-*/
 
 					nlohmann::json to_json() {
 						json j_structure = {
 							{"simulator", get_simulator()},
 							{"formalism", get_formalism()},
-							{"top", get_top()->to_json()},
+							{"top", get_top()},
 							{"model_types", json::array()},
 							{"message_types", json::array()}
 						};
@@ -282,7 +236,7 @@ namespace cadmium {
 						}
 
 						for (submodel* sm : get_components()) {
-							j_structure["submodels"].push_back(sm->to_json());
+							j_structure["components"].push_back(sm->to_json());
 						}
 
 						return j_structure;

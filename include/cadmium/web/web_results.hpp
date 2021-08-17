@@ -162,10 +162,14 @@ namespace cadmium {
     			});
 
     			traverse_model(&s, p_top.get(), [] (structure* s, web_extension* p_ext) -> void {
+    				s->add_model_type_components(p_ext);
+    			});
+
+    			traverse_model(&s, p_top.get(), [] (structure* s, web_extension* p_ext) -> void {
     				s->add_couplings(p_ext);
     			});
 
-    			s.set_top(s.get_component(p_top->get_id()));
+    			s.set_top(s.get_component(p_top->get_id())->get_idx());
     		}
     		catch(std::exception& e) {
     			std::cout << e.what();

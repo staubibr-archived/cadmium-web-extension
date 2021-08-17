@@ -49,6 +49,7 @@ namespace cadmium {
 					metadata* _metadata = NULL;
 					vector<port*> _ports = vector<port*>();
 					vector<int_coupling*> _internal_couplings = vector<int_coupling*>();
+					vector<int> _components = vector<int>();
 
 					map<string, port*> _ports_index;
 
@@ -71,6 +72,8 @@ namespace cadmium {
 					vector<port*> &get_ports() { return _ports; }
 
 					vector<int_coupling*> &get_internal_couplings() { return _internal_couplings; }
+
+					vector<int> &get_components() { return _components; }
 
 					map<string, port*> &get_ports_index() { return _ports_index; }
 
@@ -109,6 +112,10 @@ namespace cadmium {
 						get_internal_couplings().push_back(_coupling);
 					}
 
+					void add_component(submodel* component) {
+						get_components().push_back(component->get_idx());
+					}
+
 					nlohmann::json to_json() {
 						json out = {
 							{"id", get_idx()},
@@ -119,7 +126,11 @@ namespace cadmium {
 
 						if (get_type() == "atomic" ) out["message_type"] = get_message_type()->get_idx();
 
-						else for (int_coupling* lnk : get_internal_couplings()) out["couplings"].push_back(lnk->to_json());
+						else {
+							for (int_coupling* lnk : get_internal_couplings()) out["couplings"].push_back(lnk->to_json());
+
+							for (int c_idx : get_components()) out["components"].push_back(c_idx);
+						}
 
 						if (get_ports().size() == 0) out["ports"] = nullptr;
 
