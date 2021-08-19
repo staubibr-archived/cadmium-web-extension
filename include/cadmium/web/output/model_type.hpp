@@ -121,7 +121,8 @@ namespace cadmium {
 							{"id", get_idx()},
 							{"name", get_name()},
 							{"type", get_type()},
-							{"metadata", get_metadata()->to_json() }
+							{"metadata", get_metadata()->to_json() },
+							{"ports", json::array()}
 						};
 
 						if (get_type() == "atomic" ) out["message_type"] = get_message_type()->get_idx();
@@ -132,9 +133,7 @@ namespace cadmium {
 							for (int c_idx : get_components()) out["components"].push_back(c_idx);
 						}
 
-						if (get_ports().size() == 0) out["ports"] = nullptr;
-
-						else for (port* port : get_ports()) out["ports"].push_back(port->to_json());
+						for (port* port : get_ports()) out["ports"].push_back(port->to_json());
 
 						return out;
 					}

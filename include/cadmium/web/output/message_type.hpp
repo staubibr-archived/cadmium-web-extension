@@ -77,7 +77,7 @@ namespace cadmium {
 					return {
 						{"id", get_idx()},
 						{"name", get_id()},
-						{"template", get_template()},
+						{"template", get_fields()},
 						{"description", get_description()}
 					};
 				}

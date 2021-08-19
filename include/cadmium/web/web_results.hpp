@@ -150,7 +150,7 @@ namespace cadmium {
 
 		template<typename TIME>
         static structure make_structure(shared_ptr<web::coupled_web<TIME>> p_top) {
-        	structure s("DEVS", "Cadmium");
+        	structure s("GIS-DEVS", "Cadmium");
 
     		try {
     			traverse_model(&s, p_top.get(), [] (structure* s, web_extension* p_ext) -> void {
